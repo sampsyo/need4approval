@@ -72,12 +72,24 @@ def get_message(basedir):
     if not changed:
         return None
 
+    # Get the *previous day's* results.
+    for prev in model_data:
+        if prev.date != latest.date:
+            break
+
     # Construct the message.
-    return 'As of {}:\n{:.1f}% approve\n{:.1f}% disapprove\n{}'.format(
-        latest.date.strftime('%A, %B %-d, %Y'),
-        latest.approve,
-        latest.disapprove,
-        LINK_URL,
+    return (
+        'As of {date}:\n'
+        '{latest.approve:.1f}% approve ({app_chg:+.1f}% since {prev_date})\n'
+        '{latest.disapprove:.1f}% disapprove ({dis_chg:+.1f}%)\n'
+        '{url}'
+    ).format(
+        date=latest.date.strftime('%A, %B %-d, %Y'),
+        latest=latest,
+        prev_date=prev.date.strftime('%-m/%-d'),
+        app_chg=latest.approve - prev.approve,
+        dis_chg=latest.disapprove - prev.disapprove,
+        url=LINK_URL,
     )
 
 
