@@ -6,6 +6,7 @@ import json
 from mastodon import Mastodon
 import argparse
 import os
+from collections import namedtuple
 
 CSV_URL = 'https://projects.fivethirtyeight.com/trump-approval-data/' \
     'approval_topline.csv'
@@ -14,13 +15,27 @@ SUBGROUP = 'All polls'
 LAST_UPDATE_FILE = 'last_update.json'
 ACCOUNT_FILE = 'account.json'
 
+Result = namedtuple('Result', ['date', 'approve', 'disapprove'])
+
 
 def get_model():
+    """Load model results from the 538 server.
+    """
     with closing(requests.get(CSV_URL, stream=True)) as req:
         reader = csv.DictReader(req.iter_lines(decode_unicode=True))
         for row in reader:
             if row['subgroup'] == SUBGROUP:
-                yield row
+                yield parse_model_row(row)
+
+
+def parse_model_row(row):
+    """Take a row dict from the model CSV and produce a Result.
+    """
+    return Result(
+        datetime.strptime(row['modeldate'], '%m/%d/%Y'),
+        float(row['approve_estimate']),
+        float(row['disapprove_estimate']),
+    )
 
 
 def checkpoint(filename, data):
@@ -45,25 +60,23 @@ def get_message(basedir):
     """Get the message to be posted, or None if nothing is to be done.
     """
     # Get the latest model data.
-    latest = next(get_model())
-    modeldate = datetime.strptime(latest['modeldate'], '%m/%d/%Y')
-    approve = float(latest['approve_estimate'])
-    disapprove = float(latest['disapprove_estimate'])
+    model_data = get_model()
+    latest = next(model_data)
 
     # Check whether anything has changed.
     changed = checkpoint(os.path.join(basedir, LAST_UPDATE_FILE), {
-        'modeldate': modeldate.timestamp(),
-        'approve': '{:.1f}'.format(approve),
-        'disapprove': '{:.1f}'.format(disapprove),
+        'modeldate': latest.date.timestamp(),
+        'approve': '{:.1f}'.format(latest.approve),
+        'disapprove': '{:.1f}'.format(latest.disapprove),
     })
     if not changed:
         return None
 
     # Construct the message.
     return 'As of {}:\n{:.1f}% approve\n{:.1f}% disapprove\n{}'.format(
-        modeldate.strftime('%A, %B %-d, %Y'),
-        approve,
-        disapprove,
+        latest.date.strftime('%A, %B %-d, %Y'),
+        latest.approve,
+        latest.disapprove,
         LINK_URL,
     )
 
