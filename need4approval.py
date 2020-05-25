@@ -5,6 +5,7 @@ from datetime import datetime
 import json
 from mastodon import Mastodon
 import argparse
+import os
 
 CSV_URL = 'https://projects.fivethirtyeight.com/trump-approval-data/' \
     'approval_topline.csv'
@@ -40,7 +41,7 @@ def checkpoint(filename, data):
     return changed
 
 
-def get_message():
+def get_message(basedir):
     """Get the message to be posted, or None if nothing is to be done.
     """
     # Get the latest model data.
@@ -50,7 +51,7 @@ def get_message():
     disapprove = float(latest['disapprove_estimate'])
 
     # Check whether anything has changed.
-    changed = checkpoint(LAST_UPDATE_FILE, {
+    changed = checkpoint(os.path.join(basedir, LAST_UPDATE_FILE), {
         'modeldate': modeldate.timestamp(),
         'approve': '{:.1f}'.format(approve),
         'disapprove': '{:.1f}'.format(disapprove),
@@ -67,8 +68,8 @@ def get_message():
     )
 
 
-def toot(message):
-    with open(ACCOUNT_FILE) as f:
+def toot(basedir, message):
+    with open(os.path.join(basedir, ACCOUNT_FILE)) as f:
         account_data = json.load(f)
 
     mast = Mastodon(
@@ -84,16 +85,18 @@ def n4a():
                         help="Just print the update (don't toot).")
     parser.add_argument('--msg', type=str, metavar='TXT',
                         help="Post this message instead of real data.")
+    parser.add_argument('--dir', type=str, metavar='PATH', default='.',
+                        help="Base directory for data files (default: cwd).")
     args = parser.parse_args()
 
     if args.msg:
         msg = args.msg
     else:
-        msg = get_message()
+        msg = get_message(args.dir)
     print(msg or 'No update.')
 
     if msg and not args.print:
-        toot(msg)
+        toot(args.dir, msg)
         print('Tooted.')
 
 
