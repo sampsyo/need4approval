@@ -14,18 +14,48 @@ LINK_URL = 'https://projects.fivethirtyeight.com/trump-approval-ratings/'
 SUBGROUP = 'All polls'
 LAST_UPDATE_FILE = 'last_update.json'
 ACCOUNT_FILE = 'account.json'
+ETAG_FILE = 'etags.json'
 
 Result = namedtuple('Result', ['date', 'approve', 'disapprove'])
 
 
-def get_model():
-    """Load model results from the 538 server.
+def etag_get(url):
+    """Send a (streaming) GET request for a URL while caching the ETag
+    for the response. Return the response, unless the content is
+    unmodified since the last request, in which case return None.
     """
-    with closing(requests.get(CSV_URL, stream=True)) as req:
-        reader = csv.DictReader(req.iter_lines(decode_unicode=True))
-        for row in reader:
-            if row['subgroup'] == SUBGROUP:
-                yield parse_model_row(row)
+    # Load stored ETags.
+    try:
+        with open(ETAG_FILE) as f:
+            etag_data = json.load(f)
+    except (IOError, json.JSONDecodeError):
+        etag_data = {}
+
+    headers = {}
+    if url in etag_data:
+        headers['If-None-Match'] = etag_data[url]
+
+    res = requests.get(url, headers=headers, stream=True)
+
+    # If the file is unmodified, abort now.
+    if res.status_code == 304:
+        return None
+
+    # If we have updated content, save the new ETag.
+    etag_data[url] = res.headers['ETag']
+    with open(ETAG_FILE, 'w') as f:
+        json.dump(etag_data, f)
+
+    return res
+
+
+def load_model(res):
+    """Load model results from a Requests response.
+    """
+    reader = csv.DictReader(res.iter_lines(decode_unicode=True))
+    for row in reader:
+        if row['subgroup'] == SUBGROUP:
+            yield parse_model_row(row)
 
 
 def parse_model_row(row):
@@ -59,9 +89,13 @@ def checkpoint(filename, data):
 def get_message(basedir):
     """Get the message to be posted, or None if nothing is to be done.
     """
-    # Get the latest model data.
-    model_data = get_model()
-    latest = next(model_data)
+    # Get the latest model data, aborting if unchanged.
+    res = etag_get(CSV_URL)
+    if res is None:
+        return None
+    with closing(res):
+        model_data = load_model(res)
+        latest = next(model_data)
 
     # Check whether anything has changed.
     changed = checkpoint(os.path.join(basedir, LAST_UPDATE_FILE), {
