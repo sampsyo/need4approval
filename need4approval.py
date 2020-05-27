@@ -86,6 +86,16 @@ def checkpoint(filename, data):
     return changed
 
 
+def fmt_change(diff):
+    """Format a delta as a string, like +0.1%, -1.2%, or "even" for no
+    change.
+    """
+    if round(abs(diff), 1) < 0.1:
+        return 'even'
+    else:
+        return '{:+.1f}%'.format(diff)
+
+
 def get_message(basedir):
     """Get the message to be posted, or None if nothing is to be done.
     """
@@ -114,15 +124,15 @@ def get_message(basedir):
     # Construct the message.
     return (
         'As of {date}:\n'
-        '{latest.approve:.1f}% approve ({app_chg:+.1f}% since {prev_date})\n'
-        '{latest.disapprove:.1f}% disapprove ({dis_chg:+.1f}%)\n'
+        '{latest.approve:.1f}% approve ({app_chg} since {prev_date})\n'
+        '{latest.disapprove:.1f}% disapprove ({dis_chg})\n'
         '{url}'
     ).format(
         date=latest.date.strftime('%A, %B %-d, %Y'),
         latest=latest,
         prev_date=prev.date.strftime('%-m/%-d'),
-        app_chg=latest.approve - prev.approve,
-        dis_chg=latest.disapprove - prev.disapprove,
+        app_chg=fmt_change(latest.approve - prev.approve),
+        dis_chg=fmt_change(latest.disapprove - prev.disapprove),
         url=LINK_URL,
     )
 
