@@ -19,14 +19,14 @@ ETAG_FILE = 'etags.json'
 Result = namedtuple('Result', ['date', 'approve', 'disapprove'])
 
 
-def etag_get(url):
+def etag_get(basedir, url):
     """Send a (streaming) GET request for a URL while caching the ETag
     for the response. Return the response, unless the content is
     unmodified since the last request, in which case return None.
     """
     # Load stored ETags.
     try:
-        with open(ETAG_FILE) as f:
+        with open(os.path.join(basedir, ETAG_FILE)) as f:
             etag_data = json.load(f)
     except (IOError, json.JSONDecodeError):
         etag_data = {}
@@ -43,7 +43,7 @@ def etag_get(url):
 
     # If we have updated content, save the new ETag.
     etag_data[url] = res.headers['ETag']
-    with open(ETAG_FILE, 'w') as f:
+    with open(os.path.join(basedir, ETAG_FILE), 'w') as f:
         json.dump(etag_data, f)
 
     return res
@@ -90,26 +90,26 @@ def get_message(basedir):
     """Get the message to be posted, or None if nothing is to be done.
     """
     # Get the latest model data, aborting if unchanged.
-    res = etag_get(CSV_URL)
+    res = etag_get(basedir, CSV_URL)
     if res is None:
         return None
     with closing(res):
         model_data = load_model(res)
         latest = next(model_data)
 
-    # Check whether anything has changed.
-    changed = checkpoint(os.path.join(basedir, LAST_UPDATE_FILE), {
-        'modeldate': latest.date.timestamp(),
-        'approve': '{:.1f}'.format(latest.approve),
-        'disapprove': '{:.1f}'.format(latest.disapprove),
-    })
-    if not changed:
-        return None
+        # Check whether anything has changed.
+        changed = checkpoint(os.path.join(basedir, LAST_UPDATE_FILE), {
+            'modeldate': latest.date.timestamp(),
+            'approve': '{:.1f}'.format(latest.approve),
+            'disapprove': '{:.1f}'.format(latest.disapprove),
+        })
+        if not changed:
+            return None
 
-    # Get the *previous day's* results.
-    for prev in model_data:
-        if prev.date != latest.date:
-            break
+        # Get the *previous day's* results.
+        for prev in model_data:
+            if prev.date != latest.date:
+                break
 
     # Construct the message.
     return (
