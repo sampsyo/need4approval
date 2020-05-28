@@ -1,12 +1,13 @@
 import requests
 import csv
 from contextlib import closing
-from datetime import datetime
+import datetime
 import json
 from mastodon import Mastodon
 import argparse
 import os
 from collections import namedtuple
+from sparklines import sparklines
 
 CSV_URL = 'https://projects.fivethirtyeight.com/trump-approval-data/' \
     'approval_topline.csv'
@@ -15,6 +16,7 @@ SUBGROUP = 'All polls'
 LAST_UPDATE_FILE = 'last_update.json'
 ACCOUNT_FILE = 'account.json'
 ETAG_FILE = 'etags.json'
+HISTORY_DAYS = 7
 
 Result = namedtuple('Result', ['date', 'approve', 'disapprove'])
 
@@ -62,7 +64,7 @@ def parse_model_row(row):
     """Take a row dict from the model CSV and produce a Result.
     """
     return Result(
-        datetime.strptime(row['modeldate'], '%m/%d/%Y'),
+        datetime.datetime.strptime(row['modeldate'], '%m/%d/%Y'),
         float(row['approve_estimate']),
         float(row['disapprove_estimate']),
     )
@@ -96,6 +98,13 @@ def fmt_change(diff):
         return '{:+.1f}%'.format(diff)
 
 
+def timespark(values):
+    """Draw a one-line Unicode sparkline plot of a sequence of
+    reverse-chronological values.
+    """
+    return sparklines(list(reversed(list(values))))[0]
+
+
 def get_message(basedir):
     """Get the message to be posted, or None if nothing is to be done.
     """
@@ -116,16 +125,23 @@ def get_message(basedir):
         if not changed:
             return None
 
-        # Get the *previous day's* results.
-        for prev in model_data:
-            if prev.date != latest.date:
+        # Get a window of older results.
+        history = [latest]
+        delta = datetime.timedelta(days=HISTORY_DAYS)
+        for oldres in model_data:
+            if oldres.date != history[-1].date:
+                history.append(oldres)
+            if latest.date - oldres.date >= delta:
                 break
+        prev = history[1]
 
     # Construct the message.
     return (
         'As of {date}:\n'
-        '{latest.approve:.1f}% approve ({app_chg} since {prev_date})\n'
-        '{latest.disapprove:.1f}% disapprove ({dis_chg})\n'
+        '{latest.approve:.1f}% approve\n'
+        '{app_spark} ({app_chg} since {prev_date})\n'
+        '{latest.disapprove:.1f}% disapprove\n'
+        '{dis_spark} ({dis_chg})\n'
         '{url}'
     ).format(
         date=latest.date.strftime('%A, %B %-d, %Y'),
@@ -134,6 +150,8 @@ def get_message(basedir):
         app_chg=fmt_change(latest.approve - prev.approve),
         dis_chg=fmt_change(latest.disapprove - prev.disapprove),
         url=LINK_URL,
+        app_spark=timespark(h.approve for h in history),
+        dis_spark=timespark(h.disapprove for h in history),
     )
 
 
