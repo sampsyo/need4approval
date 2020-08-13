@@ -10,8 +10,8 @@ import sys
 from collections import namedtuple
 from sparklines import sparklines
 
-Source = namedtuple('Source', ['csv_url', 'link_url', 'filter'])
-Result = namedtuple('Result', ['date', 'approve', 'disapprove'])
+Source = namedtuple('Source', ['csv_url', 'link_url', 'filter', 'values'])
+Result = namedtuple('Result', ['date', 'values'])
 
 LAST_UPDATE_FILE = 'last_update.json'
 ACCOUNT_FILE = 'account.json'
@@ -23,12 +23,14 @@ SOURCES = {
         'approval_topline.csv',
         'https://projects.fivethirtyeight.com/trump-approval-ratings/',
         {'subgroup': 'All polls'},
+        {'approve': 'approve_estimate', 'disapprove': 'disapprove_estimate'},
     ),
     'presmodel': Source(
         'https://projects.fivethirtyeight.com/2020-general-data/'
         'presidential_national_toplines_2020.csv',
         'https://projects.fivethirtyeight.com/2020-election-forecast/',
         {},
+        {'Trump': 'ecwin_inc', 'Biden': 'ecwin_chal'},
     ),
 }
 
@@ -69,16 +71,15 @@ def load_model(src, res):
     reader = csv.DictReader(res.iter_lines(decode_unicode=True))
     for row in reader:
         if all(row[key] == value for key, value in src.filter.items()):
-            yield parse_model_row(row)
+            yield parse_model_row(src, row)
 
 
-def parse_model_row(row):
+def parse_model_row(src, row):
     """Take a row dict from the model CSV and produce a Result.
     """
     return Result(
         datetime.datetime.strptime(row['modeldate'], '%m/%d/%Y'),
-        float(row['approve_estimate']),
-        float(row['disapprove_estimate']),
+        {key: float(row[value]) for key, value in src.values.items()},
     )
 
 
@@ -131,8 +132,8 @@ def get_message(src, basedir):
         # Check whether anything has changed.
         changed = checkpoint(os.path.join(basedir, LAST_UPDATE_FILE), {
             'modeldate': latest.date.timestamp(),
-            'approve': '{:.1f}'.format(latest.approve),
-            'disapprove': '{:.1f}'.format(latest.disapprove),
+            'approve': '{:.1f}'.format(latest.values['approve']),
+            'disapprove': '{:.1f}'.format(latest.values['disapprove']),
         })
         if not changed:
             return None
@@ -150,20 +151,21 @@ def get_message(src, basedir):
     # Construct the message.
     return (
         'As of {date}:\n'
-        '{latest.approve:.1f}% approve\n'
+        '{latest.values[approve]:.1f}% approve\n'
         '{app_spark} ({app_chg} since {prev_date})\n'
-        '{latest.disapprove:.1f}% disapprove\n'
+        '{latest.values[disapprove]:.1f}% disapprove\n'
         '{dis_spark} ({dis_chg})\n'
         '{url}'
     ).format(
         date=latest.date.strftime('%A, %B %-d, %Y'),
         latest=latest,
         prev_date=prev.date.strftime('%-m/%-d'),
-        app_chg=fmt_change(latest.approve - prev.approve),
-        dis_chg=fmt_change(latest.disapprove - prev.disapprove),
+        app_chg=fmt_change(latest.values['approve'] - prev.values['approve']),
+        dis_chg=fmt_change(latest.values['disapprove'] -
+                           prev.values['disapprove']),
         url=src.link_url,
-        app_spark=timespark(h.approve for h in history),
-        dis_spark=timespark(h.disapprove for h in history),
+        app_spark=timespark(h.values['approve'] for h in history),
+        dis_spark=timespark(h.values['disapprove'] for h in history),
     )
 
 
