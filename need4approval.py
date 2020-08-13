@@ -10,7 +10,8 @@ import sys
 from collections import namedtuple
 from sparklines import sparklines
 
-Source = namedtuple('Source', ['csv_url', 'link_url', 'filter', 'values'])
+Source = namedtuple('Source', ['csv_url', 'link_url', 'filter',
+                               'values', 'fmt'])
 Result = namedtuple('Result', ['date', 'values'])
 
 LAST_UPDATE_FILE = 'last_update.json'
@@ -24,6 +25,7 @@ SOURCES = {
         'https://projects.fivethirtyeight.com/trump-approval-ratings/',
         {'subgroup': 'All polls'},
         {'approve': 'approve_estimate', 'disapprove': 'disapprove_estimate'},
+        '{:.1f}%',
     ),
     'presmodel': Source(
         'https://projects.fivethirtyeight.com/2020-general-data/'
@@ -31,6 +33,7 @@ SOURCES = {
         'https://projects.fivethirtyeight.com/2020-election-forecast/',
         {},
         {'Trump': 'ecwin_inc', 'Biden': 'ecwin_chal'},
+        '{:.0%}',
     ),
 }
 
@@ -130,7 +133,7 @@ def get_message(src, basedir):
         latest = next(model_data)
 
         # Check whether anything has changed.
-        fmt_vals = {k: '{:.1f}'.format(latest.values[k])
+        fmt_vals = {k: src.fmt.format(latest.values[k])
                     for k in src.values}
         changed = checkpoint(os.path.join(basedir, LAST_UPDATE_FILE), {
             'modeldate': latest.date.timestamp(),
@@ -155,15 +158,15 @@ def get_message(src, basedir):
     )
     for i, key in enumerate(src.values):
         msg += (
-            '{value:.1f}% {key}\n'
+            '{value} {key}\n'
             '{spark} ({chg}{since_date})\n'
         ).format(
             key=key,
-            value=latest.values[key],
+            value=fmt_vals[key],
             spark=timespark(h.values[key] for h in history),
             chg=fmt_change(latest.values[key] - prev.values[key]),
             since_date=(
-                'since ' + prev.date.strftime('%-m/%-d')
+                ' since ' + prev.date.strftime('%-m/%-d')
                 if i == 0 else ''
             ),
         )
