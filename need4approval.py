@@ -10,28 +10,27 @@ import sys
 from collections import namedtuple
 from sparklines import sparklines
 
+Source = namedtuple('Source', ['csv_url', 'link_url', 'filter'])
+Result = namedtuple('Result', ['date', 'approve', 'disapprove'])
+
 LAST_UPDATE_FILE = 'last_update.json'
 ACCOUNT_FILE = 'account.json'
 ETAG_FILE = 'etags.json'
 HISTORY_DAYS = 7
 SOURCES = {
-    'approval': {
-        'csv_url': 'https://projects.fivethirtyeight.com/trump-approval-data/'
-                   'approval_topline.csv',
-        'link_url': 'https://projects.fivethirtyeight.com/'
-                    'trump-approval-ratings/',
-        'filter': {'subgroup': 'All polls'},
-    },
-    'presmodel': {
-        'csv_url': 'https://projects.fivethirtyeight.com/2020-general-data/'
-                   'presidential_national_toplines_2020.csv',
-        'link_url': 'https://projects.fivethirtyeight.com/'
-                    '2020-election-forecast/',
-        'filter': {},
-    },
+    'approval': Source(
+        'https://projects.fivethirtyeight.com/trump-approval-data/'
+        'approval_topline.csv',
+        'https://projects.fivethirtyeight.com/trump-approval-ratings/',
+        {'subgroup': 'All polls'},
+    ),
+    'presmodel': Source(
+        'https://projects.fivethirtyeight.com/2020-general-data/'
+        'presidential_national_toplines_2020.csv',
+        'https://projects.fivethirtyeight.com/2020-election-forecast/',
+        {},
+    ),
 }
-
-Result = namedtuple('Result', ['date', 'approve', 'disapprove'])
 
 
 def etag_get(basedir, url):
@@ -69,7 +68,7 @@ def load_model(src, res):
     """
     reader = csv.DictReader(res.iter_lines(decode_unicode=True))
     for row in reader:
-        if all(row[key] == value for key, value in src['filter'].items()):
+        if all(row[key] == value for key, value in src.filter.items()):
             yield parse_model_row(row)
 
 
@@ -122,7 +121,7 @@ def get_message(src, basedir):
     """Get the message to be posted, or None if nothing is to be done.
     """
     # Get the latest model data, aborting if unchanged.
-    res = etag_get(basedir, src['csv_url'])
+    res = etag_get(basedir, src.csv_url)
     if res is None:
         return None
     with closing(res):
@@ -162,7 +161,7 @@ def get_message(src, basedir):
         prev_date=prev.date.strftime('%-m/%-d'),
         app_chg=fmt_change(latest.approve - prev.approve),
         dis_chg=fmt_change(latest.disapprove - prev.disapprove),
-        url=src['link_url'],
+        url=src.link_url,
         app_spark=timespark(h.approve for h in history),
         dis_spark=timespark(h.disapprove for h in history),
     )
