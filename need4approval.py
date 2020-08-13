@@ -130,10 +130,11 @@ def get_message(src, basedir):
         latest = next(model_data)
 
         # Check whether anything has changed.
+        fmt_vals = {k: '{:.1f}'.format(latest.values[k])
+                    for k in src.values}
         changed = checkpoint(os.path.join(basedir, LAST_UPDATE_FILE), {
             'modeldate': latest.date.timestamp(),
-            'approve': '{:.1f}'.format(latest.values['approve']),
-            'disapprove': '{:.1f}'.format(latest.values['disapprove']),
+            **fmt_vals
         })
         if not changed:
             return None
@@ -149,24 +150,25 @@ def get_message(src, basedir):
         prev = history[1]
 
     # Construct the message.
-    return (
-        'As of {date}:\n'
-        '{latest.values[approve]:.1f}% approve\n'
-        '{app_spark} ({app_chg} since {prev_date})\n'
-        '{latest.values[disapprove]:.1f}% disapprove\n'
-        '{dis_spark} ({dis_chg})\n'
-        '{url}'
-    ).format(
+    msg = 'As of {date}:\n'.format(
         date=latest.date.strftime('%A, %B %-d, %Y'),
-        latest=latest,
-        prev_date=prev.date.strftime('%-m/%-d'),
-        app_chg=fmt_change(latest.values['approve'] - prev.values['approve']),
-        dis_chg=fmt_change(latest.values['disapprove'] -
-                           prev.values['disapprove']),
-        url=src.link_url,
-        app_spark=timespark(h.values['approve'] for h in history),
-        dis_spark=timespark(h.values['disapprove'] for h in history),
     )
+    for i, key in enumerate(src.values):
+        msg += (
+            '{value:.1f}% {key}\n'
+            '{spark} ({chg}{since_date})\n'
+        ).format(
+            key=key,
+            value=latest.values[key],
+            spark=timespark(h.values[key] for h in history),
+            chg=fmt_change(latest.values[key] - prev.values[key]),
+            since_date=(
+                'since ' + prev.date.strftime('%-m/%-d')
+                if i == 0 else ''
+            ),
+        )
+    msg += src.link_url
+    return msg
 
 
 def toot(basedir, message):
