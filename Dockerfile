@@ -9,7 +9,8 @@ RUN apk add --update py3-pip py3-cffi py3-cryptography git \
 RUN pip3 install poetry
 
 # Get the source code.
-ADD .
+ADD . need4approval
+WORKDIR need4approval
 
 # Install the project.
 RUN poetry install
