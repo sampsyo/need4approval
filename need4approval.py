@@ -11,7 +11,7 @@ from collections import namedtuple
 from sparklines import sparklines
 
 Source = namedtuple('Source', ['csv_url', 'link_url', 'filter',
-                               'values', 'fmt'])
+                               'values', 'fmt', 'diff_fmt', 'digits'])
 Result = namedtuple('Result', ['date', 'values'])
 
 LAST_UPDATE_FILE = 'last_update.json'
@@ -26,6 +26,8 @@ SOURCES = {
         {'subgroup': 'All polls'},
         {'approve': 'approve_estimate', 'disapprove': 'disapprove_estimate'},
         '{:.1f}%',
+        '{:+.1f}%',
+        1,
     ),
     'presmodel': Source(
         'https://projects.fivethirtyeight.com/2020-general-data/'
@@ -34,6 +36,8 @@ SOURCES = {
         {},
         {'Trump': 'ecwin_inc', 'Biden': 'ecwin_chal'},
         '{:.0%}',
+        '{:+.1%}',
+        3,
     ),
 }
 
@@ -104,14 +108,14 @@ def checkpoint(filename, data):
     return changed
 
 
-def fmt_change(diff):
+def fmt_change(diff, src):
     """Format a delta as a string, like +0.1%, -1.2%, or "even" for no
     change.
     """
-    if round(abs(diff), 1) < 0.1:
+    if round(abs(diff), src.digits) < 10**(-src.digits):
         return 'even'
     else:
-        return '{:+.1f}%'.format(diff)
+        return src.diff_fmt.format(diff)
 
 
 def timespark(values):
@@ -164,7 +168,7 @@ def get_message(src, basedir):
             key=key,
             value=fmt_vals[key],
             spark=timespark(h.values[key] for h in history),
-            chg=fmt_change(latest.values[key] - prev.values[key]),
+            chg=fmt_change(latest.values[key] - prev.values[key], src),
             since_date=(
                 ' since ' + prev.date.strftime('%-m/%-d')
                 if i == 0 else ''
