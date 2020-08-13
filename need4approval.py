@@ -10,8 +10,8 @@ import sys
 from collections import namedtuple
 from sparklines import sparklines
 
-Source = namedtuple('Source', ['csv_url', 'link_url', 'filter',
-                               'values', 'fmt', 'diff_fmt', 'digits'])
+Source = namedtuple('Source', ['csv_url', 'link_url', 'filter', 'values',
+                               'fmt', 'diff_fmt', 'digits', 'one_side'])
 Result = namedtuple('Result', ['date', 'values'])
 
 LAST_UPDATE_FILE = 'last_update.json'
@@ -28,6 +28,7 @@ SOURCES = {
         '{:.1f}%',
         '{:+.1f}%',
         1,
+        False,
     ),
     'presmodel': Source(
         'https://projects.fivethirtyeight.com/2020-general-data/'
@@ -38,6 +39,7 @@ SOURCES = {
         '{:.0%}',
         '{:+.1%}',
         3,
+        True,
     ),
 }
 
@@ -156,11 +158,17 @@ def get_message(src, basedir):
                 break
         prev = history[1]
 
+    # In one_side mode, pick only the maximum statistic to show.
+    if src.one_side:
+        value_keys = [max(src.values, key=lambda k: latest.values[k])]
+    else:
+        value_keys = src.values
+
     # Construct the message.
     msg = 'As of {date}:\n'.format(
         date=latest.date.strftime('%A, %B %-d, %Y'),
     )
-    for i, key in enumerate(src.values):
+    for i, key in enumerate(value_keys):
         msg += (
             '{value} {key}\n'
             '{spark} ({chg}{since_date})\n'
