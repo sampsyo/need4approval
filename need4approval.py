@@ -6,17 +6,23 @@ import json
 from mastodon import Mastodon
 import argparse
 import os
+import sys
 from collections import namedtuple
 from sparklines import sparklines
 
-CSV_URL = 'https://projects.fivethirtyeight.com/trump-approval-data/' \
-    'approval_topline.csv'
-LINK_URL = 'https://projects.fivethirtyeight.com/trump-approval-ratings/'
-SUBGROUP = 'All polls'
 LAST_UPDATE_FILE = 'last_update.json'
 ACCOUNT_FILE = 'account.json'
 ETAG_FILE = 'etags.json'
 HISTORY_DAYS = 7
+SOURCES = {
+    'approval': {
+        'csv_url': 'https://projects.fivethirtyeight.com/trump-approval-data/'
+                   'approval_topline.csv',
+        'link_url': 'https://projects.fivethirtyeight.com/'
+                    'trump-approval-ratings/',
+        'filter': {'subgroup': 'All polls'},
+    },
+}
 
 Result = namedtuple('Result', ['date', 'approve', 'disapprove'])
 
@@ -51,12 +57,12 @@ def etag_get(basedir, url):
     return res
 
 
-def load_model(res):
+def load_model(src, res):
     """Load model results from a Requests response.
     """
     reader = csv.DictReader(res.iter_lines(decode_unicode=True))
     for row in reader:
-        if row['subgroup'] == SUBGROUP:
+        if all(row[key] == value for key, value in src['filter'].items()):
             yield parse_model_row(row)
 
 
@@ -105,15 +111,15 @@ def timespark(values):
     return sparklines(list(reversed(list(values))))[0]
 
 
-def get_message(basedir):
+def get_message(src, basedir):
     """Get the message to be posted, or None if nothing is to be done.
     """
     # Get the latest model data, aborting if unchanged.
-    res = etag_get(basedir, CSV_URL)
+    res = etag_get(basedir, src['csv_url'])
     if res is None:
         return None
     with closing(res):
-        model_data = load_model(res)
+        model_data = load_model(src, res)
         latest = next(model_data)
 
         # Check whether anything has changed.
@@ -149,7 +155,7 @@ def get_message(basedir):
         prev_date=prev.date.strftime('%-m/%-d'),
         app_chg=fmt_change(latest.approve - prev.approve),
         dis_chg=fmt_change(latest.disapprove - prev.disapprove),
-        url=LINK_URL,
+        url=src['link_url'],
         app_spark=timespark(h.approve for h in history),
         dis_spark=timespark(h.disapprove for h in history),
     )
@@ -174,14 +180,27 @@ def n4a():
                         help="Post this message instead of real data.")
     parser.add_argument('--dir', type=str, metavar='PATH', default='.',
                         help="Base directory for data files (default: cwd).")
+    parser.add_argument('--src', type=str, metavar='NAME', default='approval',
+                        help="Data source.")
     args = parser.parse_args()
 
+    # Pick the data source.
+    try:
+        src = SOURCES[args.src]
+    except KeyError:
+        print('Data source {} unknown. Must be one of: {}'.format(
+            args.src, ', '.join(SOURCES),
+        ), file=sys.stderr)
+        sys.exit(1)
+
+    # Concoct the message.
     if args.msg:
         msg = args.msg
     else:
-        msg = get_message(args.dir)
+        msg = get_message(src, args.dir)
     print(msg or 'No update.')
 
+    # Possibly toot.
     if msg and not args.print:
         toot(args.dir, msg)
         print('Tooted.')
