@@ -22,6 +22,13 @@ SOURCES = {
                     'trump-approval-ratings/',
         'filter': {'subgroup': 'All polls'},
     },
+    'presmodel': {
+        'csv_url': 'https://projects.fivethirtyeight.com/2020-general-data/'
+                   'presidential_national_toplines_2020.csv',
+        'link_url': 'https://projects.fivethirtyeight.com/'
+                    '2020-election-forecast/',
+        'filter': {},
+    },
 }
 
 Result = namedtuple('Result', ['date', 'approve', 'disapprove'])
