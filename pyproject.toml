@@ -1,20 +1,18 @@
-[tool.poetry]
-name = "need4approval"
-version = "0.1.0"
-description = ""
-authors = ["Adrian Sampson <adrian@radbox.org>"]
-license = "MIT"
-
-[tool.poetry.dependencies]
-python = "^3.6"
-"Mastodon.py" = "^1.5.1"
-sparklines = "^0.4.2"
-
-[tool.poetry.dev-dependencies]
-
-[tool.poetry.scripts]
-n4a = "need4approval:n4a"
-
 [build-system]
-requires = ["poetry>=0.12"]
-build-backend = "poetry.masonry.api"
+requires = ["flit_core >=3.11,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "need4approval"
+authors = [{name = "Adrian Sampson", email = "adrian@radbox.org"}]
+license = "MIT"
+requires-python = ">=3.6"
+dynamic = ["version", "description"]
+
+dependencies = [
+    "Mastodon.py >=1.5.1",
+    "sparklines >= 0.4.2",
+]
+
+[project.scripts]
+n4a = "need4approval:n4a"

@@ -1,3 +1,5 @@
+"""A Mastodon bot for posting 538 averages.
+"""
 import requests
 import csv
 from contextlib import closing
@@ -9,6 +11,8 @@ import os
 import sys
 from collections import namedtuple
 from sparklines import sparklines
+
+__version__ = "0.2.0"
 
 Source = namedtuple('Source', ['csv_url', 'link_url', 'filter', 'values',
                                'fmt', 'diff_fmt', 'digits', 'one_side'])
