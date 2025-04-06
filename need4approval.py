@@ -1,5 +1,5 @@
-"""A Mastodon bot for posting 538 averages.
-"""
+"""A Mastodon bot for posting 538 averages."""
+
 import requests
 import csv
 from contextlib import closing
@@ -14,34 +14,45 @@ from sparklines import sparklines
 
 __version__ = "0.2.0"
 
-Source = namedtuple('Source', ['csv_url', 'link_url', 'filter', 'values',
-                               'fmt', 'diff_fmt', 'digits', 'one_side'])
-Result = namedtuple('Result', ['date', 'values'])
+Source = namedtuple(
+    "Source",
+    [
+        "csv_url",
+        "link_url",
+        "filter",
+        "values",
+        "fmt",
+        "diff_fmt",
+        "digits",
+        "one_side",
+    ],
+)
+Result = namedtuple("Result", ["date", "values"])
 
-LAST_UPDATE_FILE = 'last_update.json'
-ACCOUNT_FILE = 'account.json'
-ETAG_FILE = 'etags.json'
+LAST_UPDATE_FILE = "last_update.json"
+ACCOUNT_FILE = "account.json"
+ETAG_FILE = "etags.json"
 HISTORY_DAYS = 7
 SOURCES = {
-    'approval': Source(
-        'https://projects.fivethirtyeight.com/trump-approval-data/'
-        'approval_topline.csv',
-        'https://projects.fivethirtyeight.com/trump-approval-ratings/',
-        {'subgroup': 'All polls'},
-        {'approve': 'approve_estimate', 'disapprove': 'disapprove_estimate'},
-        '{:.1f}%',
-        '{:+.1f}%',
+    "approval": Source(
+        "https://projects.fivethirtyeight.com/trump-approval-data/"
+        "approval_topline.csv",
+        "https://projects.fivethirtyeight.com/trump-approval-ratings/",
+        {"subgroup": "All polls"},
+        {"approve": "approve_estimate", "disapprove": "disapprove_estimate"},
+        "{:.1f}%",
+        "{:+.1f}%",
         1,
         False,
     ),
-    'presmodel': Source(
-        'https://projects.fivethirtyeight.com/2020-general-data/'
-        'presidential_national_toplines_2020.csv',
-        'https://projects.fivethirtyeight.com/2020-election-forecast/',
+    "presmodel": Source(
+        "https://projects.fivethirtyeight.com/2020-general-data/"
+        "presidential_national_toplines_2020.csv",
+        "https://projects.fivethirtyeight.com/2020-election-forecast/",
         {},
-        {'Trump': 'ecwin_inc', 'Biden': 'ecwin_chal'},
-        '{:.0%}',
-        '{:+.1%}',
+        {"Trump": "ecwin_inc", "Biden": "ecwin_chal"},
+        "{:.0%}",
+        "{:+.1%}",
         3,
         True,
     ),
@@ -62,7 +73,7 @@ def etag_get(basedir, url):
 
     headers = {}
     if url in etag_data:
-        headers['If-None-Match'] = etag_data[url]
+        headers["If-None-Match"] = etag_data[url]
 
     res = requests.get(url, headers=headers, stream=True)
 
@@ -71,16 +82,15 @@ def etag_get(basedir, url):
         return None
 
     # If we have updated content, save the new ETag.
-    etag_data[url] = res.headers['ETag']
-    with open(os.path.join(basedir, ETAG_FILE), 'w') as f:
+    etag_data[url] = res.headers["ETag"]
+    with open(os.path.join(basedir, ETAG_FILE), "w") as f:
         json.dump(etag_data, f)
 
     return res
 
 
 def load_model(src, res):
-    """Load model results from a Requests response.
-    """
+    """Load model results from a Requests response."""
     reader = csv.DictReader(res.iter_lines(decode_unicode=True))
     for row in reader:
         if all(row[key] == value for key, value in src.filter.items()):
@@ -88,10 +98,9 @@ def load_model(src, res):
 
 
 def parse_model_row(src, row):
-    """Take a row dict from the model CSV and produce a Result.
-    """
+    """Take a row dict from the model CSV and produce a Result."""
     return Result(
-        datetime.datetime.strptime(row['modeldate'], '%m/%d/%Y'),
+        datetime.datetime.strptime(row["modeldate"], "%m/%d/%Y"),
         {key: float(row[value]) for key, value in src.values.items()},
     )
 
@@ -108,7 +117,7 @@ def checkpoint(filename, data):
     else:
         changed = not all(data[k] == old_data[k] for k in data)
 
-    with open(filename, 'w') as f:
+    with open(filename, "w") as f:
         json.dump(data, f)
 
     return changed
@@ -118,8 +127,8 @@ def fmt_change(diff, src):
     """Format a delta as a string, like +0.1%, -1.2%, or "even" for no
     change.
     """
-    if round(abs(diff), src.digits) < 10**(-src.digits):
-        return 'even'
+    if round(abs(diff), src.digits) < 10 ** (-src.digits):
+        return "even"
     else:
         return src.diff_fmt.format(diff)
 
@@ -132,8 +141,7 @@ def timespark(values):
 
 
 def get_message(src, basedir):
-    """Get the message to be posted, or None if nothing is to be done.
-    """
+    """Get the message to be posted, or None if nothing is to be done."""
     # Get the latest model data, aborting if unchanged.
     res = etag_get(basedir, src.csv_url)
     if res is None:
@@ -143,12 +151,11 @@ def get_message(src, basedir):
         latest = next(model_data)
 
         # Check whether anything has changed.
-        fmt_vals = {k: src.fmt.format(latest.values[k])
-                    for k in src.values}
-        changed = checkpoint(os.path.join(basedir, LAST_UPDATE_FILE), {
-            'modeldate': latest.date.timestamp(),
-            **fmt_vals
-        })
+        fmt_vals = {k: src.fmt.format(latest.values[k]) for k in src.values}
+        changed = checkpoint(
+            os.path.join(basedir, LAST_UPDATE_FILE),
+            {"modeldate": latest.date.timestamp(), **fmt_vals},
+        )
         if not changed:
             return None
 
@@ -169,21 +176,17 @@ def get_message(src, basedir):
         value_keys = src.values
 
     # Construct the message.
-    msg = 'As of {date}:\n'.format(
-        date=latest.date.strftime('%A, %B %-d, %Y'),
+    msg = "As of {date}:\n".format(
+        date=latest.date.strftime("%A, %B %-d, %Y"),
     )
     for i, key in enumerate(value_keys):
-        msg += (
-            '{value} {key}\n'
-            '{spark} ({chg}{since_date})\n'
-        ).format(
+        msg += ("{value} {key}\n{spark} ({chg}{since_date})\n").format(
             key=key,
             value=fmt_vals[key],
             spark=timespark(h.values[key] for h in history),
             chg=fmt_change(latest.values[key] - prev.values[key], src),
             since_date=(
-                ' since ' + prev.date.strftime('%-m/%-d')
-                if i == 0 else ''
+                " since " + prev.date.strftime("%-m/%-d") if i == 0 else ""
             ),
         )
     msg += src.link_url
@@ -195,31 +198,53 @@ def toot(basedir, message):
         account_data = json.load(f)
 
     mast = Mastodon(
-        api_base_url=account_data['url'],
-        access_token=account_data['token'],
+        api_base_url=account_data["url"],
+        access_token=account_data["token"],
     )
     mast.toot(message)
 
 
 def n4a():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--print', action='store_true', default=False,
-                        help="Just print the update (don't toot).")
-    parser.add_argument('--msg', type=str, metavar='TXT',
-                        help="Post this message instead of real data.")
-    parser.add_argument('--dir', type=str, metavar='PATH', default='.',
-                        help="Base directory for data files (default: cwd).")
-    parser.add_argument('--src', type=str, metavar='NAME', default='approval',
-                        help="Data source.")
+    parser.add_argument(
+        "--print",
+        action="store_true",
+        default=False,
+        help="Just print the update (don't toot).",
+    )
+    parser.add_argument(
+        "--msg",
+        type=str,
+        metavar="TXT",
+        help="Post this message instead of real data.",
+    )
+    parser.add_argument(
+        "--dir",
+        type=str,
+        metavar="PATH",
+        default=".",
+        help="Base directory for data files (default: cwd).",
+    )
+    parser.add_argument(
+        "--src",
+        type=str,
+        metavar="NAME",
+        default="approval",
+        help="Data source.",
+    )
     args = parser.parse_args()
 
     # Pick the data source.
     try:
         src = SOURCES[args.src]
     except KeyError:
-        print('Data source {} unknown. Must be one of: {}'.format(
-            args.src, ', '.join(SOURCES),
-        ), file=sys.stderr)
+        print(
+            "Data source {} unknown. Must be one of: {}".format(
+                args.src,
+                ", ".join(SOURCES),
+            ),
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     # Concoct the message.
@@ -227,13 +252,13 @@ def n4a():
         msg = args.msg
     else:
         msg = get_message(src, args.dir)
-    print(msg or 'No update.')
+    print(msg or "No update.")
 
     # Possibly toot.
     if msg and not args.print:
         toot(args.dir, msg)
-        print('Tooted.')
+        print("Tooted.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     n4a()
