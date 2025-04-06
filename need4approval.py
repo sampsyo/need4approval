@@ -35,26 +35,14 @@ ETAG_FILE = "etags.json"
 HISTORY_DAYS = 7
 SOURCES = {
     "approval": Source(
-        "https://projects.fivethirtyeight.com/trump-approval-data/"
-        "approval_topline.csv",
-        "https://projects.fivethirtyeight.com/trump-approval-ratings/",
-        {"subgroup": "All polls"},
-        {"approve": "approve_estimate", "disapprove": "disapprove_estimate"},
+        "https://static.dwcdn.net/data/kSCt4.csv",
+        "https://www.natesilver.net/p/trump-approval-ratings-nate-silver-bulletin",
+        {},
+        {"approve": "approve", "disapprove": "disapprove"},
         "{:.1f}%",
         "{:+.1f}%",
         1,
         False,
-    ),
-    "presmodel": Source(
-        "https://projects.fivethirtyeight.com/2020-general-data/"
-        "presidential_national_toplines_2020.csv",
-        "https://projects.fivethirtyeight.com/2020-election-forecast/",
-        {},
-        {"Trump": "ecwin_inc", "Biden": "ecwin_chal"},
-        "{:.0%}",
-        "{:+.1%}",
-        3,
-        True,
     ),
 }
 
@@ -147,8 +135,9 @@ def get_message(src, basedir):
     if res is None:
         return None
     with closing(res):
-        model_data = load_model(src, res)
-        latest = next(model_data)
+        model_data = list(load_model(src, res))
+        model_data.reverse()
+        latest = model_data[0]
 
         # Check whether anything has changed.
         fmt_vals = {k: src.fmt.format(latest.values[k]) for k in src.values}
@@ -162,7 +151,7 @@ def get_message(src, basedir):
         # Get a window of older results.
         history = [latest]
         delta = datetime.timedelta(days=HISTORY_DAYS)
-        for oldres in model_data:
+        for oldres in model_data[1:]:
             if oldres.date != history[-1].date:
                 history.append(oldres)
             if latest.date - oldres.date >= delta:
