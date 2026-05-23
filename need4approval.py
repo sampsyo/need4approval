@@ -157,7 +157,12 @@ def get_message(src, basedir):
                 history.append(oldres)
             if latest.date - oldres.date >= delta:
                 break
-        prev = history[1]
+
+        # `prev` is the date we'll compare against to show a recent trend.
+        # Currently, the API seems to have a bug where the last two days are
+        # always identical, so (for now) we compare against the data from *two*
+        # days ago.
+        prev = history[2]
 
     # In one_side mode, pick only the maximum statistic to show.
     if src.one_side:
