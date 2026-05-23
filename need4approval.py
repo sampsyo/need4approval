@@ -1,15 +1,16 @@
 """A Mastodon bot for posting 538 averages."""
 
-import requests
+import argparse
 import csv
-from contextlib import closing
 import datetime
 import json
-from mastodon import Mastodon
-import argparse
 import os
 import sys
 from collections import namedtuple
+from contextlib import closing
+
+import requests
+from mastodon import Mastodon
 from sparklines import sparklines
 
 __version__ = "0.2.0"
@@ -174,9 +175,7 @@ def get_message(src, basedir):
             value=fmt_vals[key],
             spark=timespark(h.values[key] for h in history),
             chg=fmt_change(latest.values[key] - prev.values[key], src),
-            since_date=(
-                " since " + prev.date.strftime("%-m/%-d") if i == 0 else ""
-            ),
+            since_date=(" since " + prev.date.strftime("%-m/%-d") if i == 0 else ""),
         )
     msg += src.link_url
     return msg
