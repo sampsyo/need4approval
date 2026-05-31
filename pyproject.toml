@@ -10,8 +10,8 @@ requires-python = ">=3.13"
 dynamic = ["version", "description"]
 
 dependencies = [
-    "Mastodon.py >=1.5.1",
-    "sparklines >= 0.4.2",
+    "Mastodon.py >=2.2.1",
+    "sparklines >= 0.7.0",
 ]
 
 [project.scripts]
