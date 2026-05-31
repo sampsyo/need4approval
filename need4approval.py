@@ -1,8 +1,9 @@
-"""A Mastodon bot for posting 538 averages."""
+"""A Mastodon bot for posting polling averages."""
 
 import argparse
 import csv
 import datetime
+import itertools
 import json
 import os
 import sys
@@ -20,7 +21,6 @@ Source = namedtuple(
     [
         "csv_url",
         "link_url",
-        "filter",
         "values",
         "fmt",
         "diff_fmt",
@@ -36,10 +36,10 @@ ETAG_FILE = "etags.json"
 HISTORY_DAYS = 7
 SOURCES = {
     "approval": Source(
-        "https://static.dwcdn.net/data/kSCt4.csv",
-        "https://www.natesilver.net/p/trump-approval-ratings-nate-silver-bulletin",
-        {},
-        {"approve": "approve", "disapprove": "disapprove"},
+        "https://www.nytimes.com/newsgraphics/polls/approval/president-averages.csv",
+        "https://www.nytimes.com/interactive/polls/"
+        "donald-trump-approval-rating-polls.html",
+        {"approve": "Approve", "disapprove": "Disapprove"},
         "{:.1f}%",
         "{:+.1f}%",
         1,
@@ -81,17 +81,20 @@ def etag_get(basedir, url):
 def load_model(src, res):
     """Load model results from a Requests response."""
     reader = csv.DictReader(res.iter_lines(decode_unicode=True))
-    for row in reader:
-        if all(row[key] == value for key, value in src.filter.items()):
-            yield parse_model_row(src, row)
+    for rows in itertools.batched(reader, len(src.values), strict=True):
+        yield parse_model_rows(src, rows)
 
 
-def parse_model_row(src, row):
+def parse_model_rows(src, rows):
     """Take a row dict from the model CSV and produce a Result."""
-    return Result(
-        datetime.datetime.strptime(row["modeldate"], "%m/%d/%Y"),
-        {key: float(row[value]) for key, value in src.values.items()},
-    )
+    assert len(rows) == len(src.values)
+    assert len(set(row["date"] for row in rows)) == 1
+
+    date = datetime.datetime.strptime(rows[0]["date"], "%Y-%m-%d")
+    answer_to_key = {v: k for k, v in src.values.items()}
+    values = {answer_to_key[row["answer"]]: float(row["pct"]) for row in rows}
+
+    return Result(date, values)
 
 
 def checkpoint(filename, data):
@@ -158,11 +161,9 @@ def get_message(src, basedir):
             if latest.date - oldres.date >= delta:
                 break
 
-        # `prev` is the date we'll compare against to show a recent trend.
-        # Currently, the API seems to have a bug where the last two days are
-        # always identical, so (for now) we compare against the data from *two*
-        # days ago.
-        prev = history[2]
+        # `prev` is the date we'll compare against to show a recent trend. This
+        # selects yesterday's numbers.
+        prev = history[1]
 
     # In one_side mode, pick only the maximum statistic to show.
     if src.one_side:

@@ -6,7 +6,7 @@ build-backend = "flit_core.buildapi"
 name = "need4approval"
 authors = [{name = "Adrian Sampson", email = "adrian@radbox.org"}]
 license = "MIT"
-requires-python = ">=3.6"
+requires-python = ">=3.13"
 dynamic = ["version", "description"]
 
 dependencies = [
