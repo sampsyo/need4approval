@@ -33,7 +33,7 @@ Result = namedtuple("Result", ["date", "values"])
 LAST_UPDATE_FILE = "last_update.json"
 ACCOUNT_FILE = "account.json"
 ETAG_FILE = "etags.json"
-HISTORY_DAYS = 7
+HISTORY_DAYS = 14
 SOURCES = {
     "approval": Source(
         "https://www.nytimes.com/newsgraphics/polls/approval/president-averages.csv",
