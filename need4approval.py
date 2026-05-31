@@ -132,7 +132,7 @@ def timespark(values):
     return sparklines(list(reversed(list(values))))[0]
 
 
-def get_message(src, basedir):
+def get_message(src, basedir, skip_days=0):
     """Get the message to be posted, or None if nothing is to be done."""
     # Get the latest model data, aborting if unchanged.
     res = etag_get(basedir, src.csv_url)
@@ -141,6 +141,7 @@ def get_message(src, basedir):
     with closing(res):
         model_data = list(load_model(src, res))
         model_data.reverse()
+        model_data = model_data[skip_days:]
         latest = model_data[0]
 
         # Check whether anything has changed.
@@ -226,6 +227,13 @@ def n4a():
         default="approval",
         help="Data source.",
     )
+    parser.add_argument(
+        "--skip",
+        type=int,
+        metavar="DAYS",
+        default=0,
+        help="Use data from some days ago.",
+    )
     args = parser.parse_args()
 
     # Pick the data source.
@@ -245,7 +253,7 @@ def n4a():
     if args.msg:
         msg = args.msg
     else:
-        msg = get_message(src, args.dir)
+        msg = get_message(src, args.dir, skip_days=args.skip)
     print(msg or "No update.")
 
     # Possibly toot.
