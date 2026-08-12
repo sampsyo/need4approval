@@ -75,6 +75,9 @@ def etag_get(basedir, url):
     with open(os.path.join(basedir, ETAG_FILE), "w") as f:
         json.dump(etag_data, f)
 
+    # Force a text encoding.
+    res.encoding = 'utf8'
+
     return res
 
 
